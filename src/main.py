@@ -7,47 +7,85 @@ from dotenv import load_dotenv
 import os
 import speech_recognition as sr
 import pyaudio
+import sys
 
 def setup_gpio():
     """Initialize GPIO settings"""
-    GPIO.setmode(GPIO.BCM)  # Use Broadcom pin numbering
-    GPIO.setwarnings(False)  # Disable GPIO warnings
+    try:
+        print("Setting up GPIO...")
+        GPIO.setmode(GPIO.BCM)  # Use Broadcom pin numbering
+        GPIO.setwarnings(False)  # Disable GPIO warnings
+        print("GPIO setup complete")
+    except Exception as e:
+        print(f"Error in GPIO setup: {e}")
+        raise
 
 def cleanup():
     """Clean up GPIO resources"""
-    GPIO.cleanup()
+    try:
+        print("Cleaning up GPIO...")
+        GPIO.cleanup()
+        print("GPIO cleanup complete")
+    except Exception as e:
+        print(f"Error in GPIO cleanup: {e}")
 
 def get_audio_device():
     """Get the first available audio input device"""
-    p = pyaudio.PyAudio()
-    device_index = None
-    
-    for i in range(p.get_device_count()):
-        dev = p.get_device_info_by_index(i)
-        if dev['maxInputChannels'] > 0:
-            device_index = i
-            print(f"Using audio device: {dev['name']}")
-            break
-    
-    p.terminate()
-    return device_index
+    try:
+        print("Initializing PyAudio...")
+        p = pyaudio.PyAudio()
+        device_index = None
+        
+        print("Checking audio devices...")
+        device_count = p.get_device_count()
+        print(f"Found {device_count} audio devices")
+        
+        for i in range(device_count):
+            try:
+                dev = p.get_device_info_by_index(i)
+                print(f"Device {i}: {dev['name']} (Input channels: {dev['maxInputChannels']})")
+                if dev['maxInputChannels'] > 0:
+                    device_index = i
+                    print(f"Selected audio device: {dev['name']}")
+                    break
+            except Exception as e:
+                print(f"Error checking device {i}: {e}")
+        
+        p.terminate()
+        return device_index
+    except Exception as e:
+        print(f"Error in get_audio_device: {e}")
+        raise
 
 def main():
+    print("Starting application...")
+    
     # Load environment variables
-    load_dotenv()
+    try:
+        print("Loading environment variables...")
+        load_dotenv()
+    except Exception as e:
+        print(f"Error loading environment variables: {e}")
     
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Bonesy Personal Helper - Speech Recognition')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    parser.add_argument('--engine', choices=['sphinx', 'google'], default='sphinx',
-                      help='Speech recognition engine to use (default: sphinx)')
-    args = parser.parse_args()
+    try:
+        print("Parsing command line arguments...")
+        parser = argparse.ArgumentParser(description='Bonesy Personal Helper - Speech Recognition')
+        parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+        parser.add_argument('--engine', choices=['sphinx', 'google'], default='sphinx',
+                          help='Speech recognition engine to use (default: sphinx)')
+        args = parser.parse_args()
+        print("Command line arguments parsed successfully")
+    except Exception as e:
+        print(f"Error parsing arguments: {e}")
+        sys.exit(1)
     
     try:
         # Initialize GPIO
         setup_gpio()
         
         # Get audio device
+        print("Getting audio device...")
         device_index = get_audio_device()
         if device_index is None:
             print("No audio input device found. Please check your microphone connection.")
@@ -55,18 +93,22 @@ def main():
             return
         
         # Initialize recognizer
+        print("Initializing speech recognizer...")
         recognizer = sr.Recognizer()
+        print("Speech recognizer initialized")
         
         print("Starting speech recognition... Press Ctrl+C to stop")
         
         # Main application loop
         while True:
             try:
+                print("Opening microphone...")
                 with sr.Microphone(device_index=device_index) as source:
                     if args.debug:
                         print("Listening...")
                     
                     # Listen for audio
+                    print("Listening for audio...")
                     audio = recognizer.listen(source)
                     
                     if args.debug:
@@ -88,12 +130,19 @@ def main():
                         print(f"Could not request results; {e}")
                 
             except Exception as e:
+                print(f"Error in main loop: {e}")
                 if args.debug:
-                    print(f"Error in main loop: {e}")
+                    import traceback
+                    traceback.print_exc()
                 continue
             
     except KeyboardInterrupt:
         print("\nApplication terminated by user")
+    except Exception as e:
+        print(f"\nFatal error: {e}")
+        if args.debug:
+            import traceback
+            traceback.print_exc()
     finally:
         cleanup()
 
