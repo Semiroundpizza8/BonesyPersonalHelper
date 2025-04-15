@@ -3,4 +3,6 @@ python-dotenv==1.0.0
 argparse==1.4.0
 pyaudio==0.2.13
 numpy==1.24.3
-wave==0.0.2 
+wave==0.0.2
+SpeechRecognition==3.10.0
+pocketsphinx==5.0.0 

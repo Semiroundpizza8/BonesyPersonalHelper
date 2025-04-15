@@ -8,6 +8,7 @@ import os
 import pyaudio
 import numpy as np
 import wave
+import speech_recognition as sr
 
 # Audio configuration
 CHUNK = 1024  # Number of frames per buffer
@@ -56,6 +57,31 @@ def process_audio(data):
             print(f"Error processing audio: {e}")
         return 0.0
 
+def recognize_speech(audio_data):
+    """Convert audio data to text using speech recognition"""
+    try:
+        # Initialize recognizer
+        recognizer = sr.Recognizer()
+        
+        # Convert audio data to AudioData object
+        audio = sr.AudioData(audio_data, RATE, 2)  # 2 bytes per sample
+        
+        # Recognize speech using Sphinx (offline)
+        text = recognizer.recognize_sphinx(audio)
+        return text
+    except sr.UnknownValueError:
+        if args.debug:
+            print("Speech recognition could not understand audio")
+        return None
+    except sr.RequestError as e:
+        if args.debug:
+            print(f"Could not request results from speech recognition service; {e}")
+        return None
+    except Exception as e:
+        if args.debug:
+            print(f"Error in speech recognition: {e}")
+        return None
+
 def main():
     # Load environment variables
     load_dotenv()
@@ -64,6 +90,7 @@ def main():
     parser = argparse.ArgumentParser(description='Bonesy Personal Helper - Audio Capture')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--threshold', type=int, default=1000, help='Volume threshold for printing')
+    parser.add_argument('--speech', action='store_true', help='Enable speech recognition')
     args = parser.parse_args()
     
     try:
@@ -74,6 +101,11 @@ def main():
         audio, stream = setup_audio()
         
         print("Starting audio capture... Press Ctrl+C to stop")
+        if args.speech:
+            print("Speech recognition enabled")
+        
+        # Buffer for speech recognition
+        speech_buffer = []
         
         # Main application loop
         while True:
@@ -84,8 +116,20 @@ def main():
                 # Process audio
                 volume = process_audio(data)
                 
+                # If speech recognition is enabled, collect audio data
+                if args.speech and volume > args.threshold:
+                    speech_buffer.append(data)
+                    if len(speech_buffer) > 10:  # Collect about 1 second of audio
+                        # Convert buffer to single audio data
+                        audio_data = b''.join(speech_buffer)
+                        # Recognize speech
+                        text = recognize_speech(audio_data)
+                        if text:
+                            print(f"Recognized: {text}")
+                        speech_buffer = []  # Clear buffer
+                
                 # Print volume level if it exceeds threshold
-                if volume > args.threshold:
+                if volume > args.threshold and not args.speech:
                     print(f"Volume level: {volume:.2f}")
                 
                 if args.debug:
