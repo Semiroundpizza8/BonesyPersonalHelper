@@ -6,6 +6,7 @@ import argparse
 from dotenv import load_dotenv
 import os
 import speech_recognition as sr
+import pyaudio
 
 def setup_gpio():
     """Initialize GPIO settings"""
@@ -15,6 +16,21 @@ def setup_gpio():
 def cleanup():
     """Clean up GPIO resources"""
     GPIO.cleanup()
+
+def get_audio_device():
+    """Get the first available audio input device"""
+    p = pyaudio.PyAudio()
+    device_index = None
+    
+    for i in range(p.get_device_count()):
+        dev = p.get_device_info_by_index(i)
+        if dev['maxInputChannels'] > 0:
+            device_index = i
+            print(f"Using audio device: {dev['name']}")
+            break
+    
+    p.terminate()
+    return device_index
 
 def main():
     # Load environment variables
@@ -31,20 +47,22 @@ def main():
         # Initialize GPIO
         setup_gpio()
         
+        # Get audio device
+        device_index = get_audio_device()
+        if device_index is None:
+            print("No audio input device found. Please check your microphone connection.")
+            print("You might need to run the setup_audio.sh script first.")
+            return
+        
         # Initialize recognizer
         recognizer = sr.Recognizer()
         
-        # Adjust for ambient noise
-        print("Adjusting for ambient noise... Please wait.")
-        with sr.Microphone() as source:
-            recognizer.adjust_for_ambient_noise(source, duration=2)
-        
-        print("Listening... Press Ctrl+C to stop")
+        print("Starting speech recognition... Press Ctrl+C to stop")
         
         # Main application loop
         while True:
             try:
-                with sr.Microphone() as source:
+                with sr.Microphone(device_index=device_index) as source:
                     if args.debug:
                         print("Listening...")
                     
