@@ -38,11 +38,23 @@ def setup_audio():
 
 def process_audio(data):
     """Process audio data and return volume level"""
-    # Convert to numpy array
-    audio_data = np.frombuffer(data, dtype=np.int16)
-    # Calculate RMS value
-    rms = np.sqrt(np.mean(audio_data**2))
-    return rms
+    try:
+        # Convert to numpy array and ensure it's the correct type
+        audio_data = np.frombuffer(data, dtype=np.int16)
+        
+        # Calculate the mean of the absolute values instead of RMS
+        # This is more stable and avoids the sqrt issue
+        volume = np.mean(np.abs(audio_data))
+        
+        # Ensure we don't return NaN or infinite values
+        if np.isnan(volume) or np.isinf(volume):
+            return 0.0
+            
+        return float(volume)
+    except Exception as e:
+        if args.debug:
+            print(f"Error processing audio: {e}")
+        return 0.0
 
 def main():
     # Load environment variables
@@ -65,20 +77,26 @@ def main():
         
         # Main application loop
         while True:
-            # Read audio data
-            data = stream.read(CHUNK, exception_on_overflow=False)
-            
-            # Process audio
-            volume = process_audio(data)
-            
-            # Print volume level if it exceeds threshold
-            if volume > args.threshold:
-                print(f"Volume level: {volume:.2f}")
-            
-            if args.debug:
-                print(f"Current volume: {volume:.2f}")
-            
-            time.sleep(0.1)  # Small delay to prevent overwhelming the output
+            try:
+                # Read audio data
+                data = stream.read(CHUNK, exception_on_overflow=False)
+                
+                # Process audio
+                volume = process_audio(data)
+                
+                # Print volume level if it exceeds threshold
+                if volume > args.threshold:
+                    print(f"Volume level: {volume:.2f}")
+                
+                if args.debug:
+                    print(f"Current volume: {volume:.2f}")
+                
+                time.sleep(0.1)  # Small delay to prevent overwhelming the output
+                
+            except Exception as e:
+                if args.debug:
+                    print(f"Error in main loop: {e}")
+                continue
             
     except KeyboardInterrupt:
         print("\nApplication terminated by user")
