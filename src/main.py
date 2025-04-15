@@ -8,6 +8,7 @@ import os
 import speech_recognition as sr
 import pyaudio
 import sys
+import subprocess
 
 def setup_gpio():
     """Initialize GPIO settings"""
@@ -28,6 +29,30 @@ def cleanup():
         print("GPIO cleanup complete")
     except Exception as e:
         print(f"Error in GPIO cleanup: {e}")
+
+def check_audio_permissions():
+    """Check audio permissions and groups"""
+    try:
+        print("Checking audio permissions...")
+        # Check if user is in required groups
+        groups = subprocess.check_output(['groups']).decode().strip().split()
+        required_groups = ['audio', 'input', 'pulse', 'pulse-access']
+        missing_groups = [group for group in required_groups if group not in groups]
+        
+        if missing_groups:
+            print(f"Warning: User is not in required groups: {', '.join(missing_groups)}")
+            print("Please run the setup_audio.sh script and reboot")
+            return False
+            
+        # Check device permissions
+        snd_devices = subprocess.check_output(['ls', '-l', '/dev/snd/']).decode()
+        print("Audio device permissions:")
+        print(snd_devices)
+        
+        return True
+    except Exception as e:
+        print(f"Error checking permissions: {e}")
+        return False
 
 def get_audio_device():
     """Get the first available audio input device"""
@@ -50,6 +75,10 @@ def get_audio_device():
                     break
             except Exception as e:
                 print(f"Error checking device {i}: {e}")
+        
+        if device_index is None:
+            print("No input devices found. Please check your microphone connection.")
+            print("You might need to run the setup_audio.sh script first.")
         
         p.terminate()
         return device_index
@@ -81,6 +110,11 @@ def main():
         sys.exit(1)
     
     try:
+        # Check audio permissions
+        if not check_audio_permissions():
+            print("Audio permissions check failed. Please fix permissions and try again.")
+            return
+        
         # Initialize GPIO
         setup_gpio()
         
